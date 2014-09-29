@@ -9,67 +9,54 @@ import java.util.UUID;
  */
 public class Fragment /*implements Serializable*/ {
     /**
-     * Fragment format version.
-     */
-    protected short version;
-
-    /**
      * UUID/Hash of the fully assembled data (aka the cluster UUID).
      * This hash can be used to verify the complete cluster data upon an attempt to defragment the cluster.
      * This may also be a potential security issue as the hash may help in a brute force scenario.
      */
-    protected UUID clusterUuid;
+    private Cluster cluster;
 
     /**
      * Universal Unique IDentifier (type 3) for this particular fragment.
      * This is a type 3 (or version 3) UUID meaning it contains an MD5 hash apart from UUID version tag.
      * The MD5 hash (or "name") in the UUID is a hash of the fragment payload data.
      */
-    protected UUID fragUuid;
+    private final UUID fragUuid;
 
     /**
-     * Cluster size.
-     * This is how many fragments the specified cluster contains.
+     * Fragment role in the cluster.
+     * This is a parameter essential for the fragment/defragment process.
+     * Basically, it identifies what part of the data this fragment corresponds to.
      */
-    protected int clusterSize;
-
-    /**
-     * Cluster overhead.
-     * This is how many fragments that are redundant to the original data.
-     * This is the amount of fragments that can be lost/tampered without compromizing the cluster.
-     */
-    protected int clusterOverhead;
+    private final byte part;    // TODO Use an enum for this?
 
     /**
      * The actual fragment data.
      */
-    protected byte[] payload;
+    private final byte[] payload;
 
+
+    /**
+     * Constructor to be used when creating a fragment for the first time (during the fragmentation process).
+     * @param cluster Cluster UUID (type 3) containing a hash of the complete cluster data
+     * @param part What part of the cluster (algorithm-wise) this is
+     * @param payload Payload data for this particular fragment
+     */
+    public Fragment(UUID cluster, byte part, byte[] payload) {
+        this.payload = payload;
+        this.part = part;
+        this.fragUuid = UUID.nameUUIDFromBytes(getPayload());
+    }
 
     /**
      * Constructor to be used internally when importing/parsing a fragment.
      */
-    private Fragment(short version, UUID frag, UUID cluster, int clusterSize, int clusterOverhead, byte[] payload) {
-        this.version = version;
+    private Fragment(Cluster cluster, UUID frag, byte part, byte[] payload) {
+        this.cluster = cluster;
         this.fragUuid = frag;
-        this.clusterUuid = cluster;
-        this.clusterSize = clusterSize;
-        this.clusterOverhead = clusterOverhead;
+        this.part = part;
         this.payload = payload;
     }
 
-    /**
-     * Constructor to be used when creating a fragment for the first time (during the fragmentation process).
-     * @param version Fragment format version
-     * @param cluster Cluster UUID (type 3) containing a hash of the complete cluster data
-     * @param payload Payload data for this particular fragment
-     */
-    Fragment(short version, UUID cluster, byte[] payload) {
-        this.version = version;
-        this.clusterUuid = cluster;
-        this.payload = payload;
-        recalculateFragUUID();
-    }
 
     /**
      * Parse a possible fragment from an open input stream.
@@ -105,6 +92,9 @@ public class Fragment /*implements Serializable*/ {
         int hClusterSize = din.readInt();
         int hClusterOverhead = din.readInt();
 
+        // Read fragment parameters
+        byte hPart = din.readByte();
+
         // Read the payload data size
         int hPayloadSize = din.readInt();
 
@@ -119,7 +109,14 @@ public class Fragment /*implements Serializable*/ {
             throw new FragmentFormatException("Fragment possibly currupted (hash check failed)");
         }
 
-        return new Fragment(hVersion, hFUuid, hCUuid, hClusterSize, hClusterOverhead, hPayload);
+        return new Fragment(new Cluster(hCUuid, hClusterSize, hClusterOverhead, hVersion), hFUuid, hPart, hPayload);
+
+        /* Hey! There's room for some optimization here! The way a new cluster is created for each fragment can be
+         * refactored to using some sort of FragmentParser that holds discovered clusters - in, say, a HashMap - and
+         * sorts the fragments directly into their appropriate clusters.
+         * This way, most of these (cluster) memory allocations could be replaced by a respective log(N) lookup.
+         * But this would require a different design pattern. Maybe consider in some future?
+         */
     }
 
     /**
@@ -132,19 +129,23 @@ public class Fragment /*implements Serializable*/ {
         DataOutputStream dout = new DataOutputStream(dest);
 
         // Write version and algorithm header
-        dout.writeShort(getVersion());
+        dout.writeShort(cluster.getFormatVersion());
 
         // Write cluster UUID
-        dout.writeLong(getClusterUuid().getMostSignificantBits());
-        dout.writeLong(getClusterUuid().getLeastSignificantBits());
+        UUID clusterUuid = cluster.getUuid();
+        dout.writeLong(clusterUuid.getMostSignificantBits());
+        dout.writeLong(clusterUuid.getLeastSignificantBits());
 
         // Write frag UUID
         dout.writeLong(getFragUuid().getMostSignificantBits());
         dout.writeLong(getFragUuid().getLeastSignificantBits());
 
-        // Write parameters
-        dout.writeInt(getClusterSize());
-        dout.writeInt(getClusterOverhead());
+        // Write cluster parameters
+        dout.writeInt(cluster.getSize());
+        dout.writeInt(cluster.getOverhead());
+
+        // Write fragment parameters
+        dout.writeByte(part);
 
         // Write payload size
         dout.writeInt(getPayload().length);
@@ -155,44 +156,37 @@ public class Fragment /*implements Serializable*/ {
 
 
     /**
-     * Recalculates the fragment UUID.
-     * This method is used internally to update the fragment UUID hash based on the (new) payload data.
-     * Note that the payload data must be updated _before_ invoking this method.
+     * Merge this fragment into the cluster where it belongs.
+     * This will abandon this fragments' current cluster reference.
+     * Naturally, when a fragment is parsed, a new cluster object will be created according to the specifications in the
+     * fragment header data. This method can later be used to merge this fragment into an already existing cluster that
+     * matches this fragment specifications (cluster UUID, parameters, etc).
+     * @param destination Existing cluster to merge this fragment into.
+     * @throws InvalidClusterException If this fragments' cluster specification does no match the destination cluster
      */
-    protected void recalculateFragUUID() {
-        fragUuid = UUID.nameUUIDFromBytes(getPayload());
-        //System.gc();
+    public void mergeInto(Cluster destination) throws InvalidClusterException {
+        if(getCluster().equals(destination)) {
+            this.cluster = destination;
+            //System.gc();
+        } else {
+            throw new InvalidClusterException("Fragment does not match to cluster");
+        }
     }
 
     /**
-     * Get the fragment format version.
-     * @return Fragment format version
+     * Get the cluster that this fragment is associated with.
+     * Note that a newly parsed fragment will be alone in its own cluster unless later merged with an already existing
+     * cluster.
+     * @return The cluster
      */
-    public int getVersion() { return version; }
-
+    public Cluster getCluster() {
+        return cluster;
+    }
     /**
      * Get the type 3 UUID for this particular fragment.
      * @return Fragment UUID
      */
     public UUID getFragUuid() { return fragUuid; }
-
-    /**
-     * Get the type 3 UUID for the complete cluster data.
-     * @return Cluster UUID
-     */
-    public UUID getClusterUuid() { return clusterUuid; }
-
-    /**
-     * Get the specified cluster size.
-     * @return Cluster size
-     */
-    public int getClusterSize() { return clusterSize; }
-
-    /**
-     * Get the specified cluster overhead.
-     * @return Cluster overhead
-     */
-    public int getClusterOverhead() { return clusterOverhead; }
 
     /**
      * Get the payload data of this fragment.
