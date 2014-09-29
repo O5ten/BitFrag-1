@@ -110,6 +110,13 @@ public class Fragment /*implements Serializable*/ {
         }
 
         return new Fragment(new Cluster(hCUuid, hClusterSize, hClusterOverhead, hVersion), hFUuid, hPart, hPayload);
+
+        /* Hey! There's room for some optimization here! The way a new cluster is created for each fragment can be
+         * refactored to using some sort of FragmentParser that holds discovered clusters - in, say, a HashMap - and
+         * sorts the fragments directly into their appropriate clusters.
+         * This way, most of these (cluster) memory allocations could be replaced by a respective log(N) lookup.
+         * But this would require a different design pattern. Maybe consider in some future?
+         */
     }
 
     /**
@@ -148,6 +155,33 @@ public class Fragment /*implements Serializable*/ {
     }
 
 
+    /**
+     * Merge this fragment into the cluster where it belongs.
+     * This will abandon this fragments' current cluster reference.
+     * Naturally, when a fragment is parsed, a new cluster object will be created according to the specifications in the
+     * fragment header data. This method can later be used to merge this fragment into an already existing cluster that
+     * matches this fragment specifications (cluster UUID, parameters, etc).
+     * @param destination Existing cluster to merge this fragment into.
+     * @throws InvalidClusterException If this fragments' cluster specification does no match the destination cluster
+     */
+    public void mergeInto(Cluster destination) throws InvalidClusterException {
+        if(getCluster().equals(destination)) {
+            this.cluster = destination;
+            //System.gc();
+        } else {
+            throw new InvalidClusterException("Fragment does not match to cluster");
+        }
+    }
+
+    /**
+     * Get the cluster that this fragment is associated with.
+     * Note that a newly parsed fragment will be alone in its own cluster unless later merged with an already existing
+     * cluster.
+     * @return The cluster
+     */
+    public Cluster getCluster() {
+        return cluster;
+    }
     /**
      * Get the type 3 UUID for this particular fragment.
      * @return Fragment UUID

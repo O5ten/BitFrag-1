@@ -120,6 +120,25 @@ public class Cluster extends HashSet<Fragment> {
     }
 
     /**
+     * Matches this cluster to another.
+     * For two clusters to be considered the same, all cluster parameters and the UUID must match.
+     * @param other Another cluster instance to compare to
+     * @return true if all essential properties of the instances match (and hence are the same cluster), false otherwise
+     */
+    @Override
+    public boolean equals(Object other) {
+        if(other == null || !(other instanceof Cluster)) {  // Yep, instanceof. What can you do about it!? :/
+            return false;
+        } else {
+            Cluster otherCluster = (Cluster)other;
+            return getSize() == otherCluster.getSize() &&           // Is this big chunk of lines good-looking code?
+                    getOverhead() == otherCluster.getOverhead() &&
+                    getFormatVersion() == otherCluster.getFormatVersion() &&
+                    getUuid().equals(otherCluster.getUuid());      // TODO Verify that this resolves as intended
+        }   // Wow, this method looks like hell, haha!
+    }
+
+    /**
      * Get the fragment format version.
      * @return Fragment format version
      */
