@@ -19,25 +19,17 @@ public class Cluster extends HashSet<Fragment> {
     private final UUID uuid;
 
     /**
-     * Fragmentation algorithm in use.
-     * Each fragment may have different algorithms specified. This is erroneous and thus this spec is always used.
-     */
-    private final AlgorithmSpec algorithm;
-
-
-    /**
      * Create a complete set of fragments from a block of data.
      * @param data Data block to fragment
      */
-    public Cluster(ByteBuffer data, AlgorithmSpec algorithm) {      // Throw UnsupportedOperationException and/or ReadOnlyBufferException? (from ByteBuffer)
+    public Cluster(ByteBuffer data) {      // Throw UnsupportedOperationException and/or ReadOnlyBufferException? (from ByteBuffer)
         // Calculate the cluster UUID (by hashing the original data) and create it
         this.uuid = UUID.nameUUIDFromBytes(data.array());
-        this.algorithm = algorithm;
 
         // This is where the magic happens...
-        // TODO Insert OO-magic for invoking algorithm specific sub-classes etc
+        // TODO Implement the Reed-Solomon algorithm
         // For now, just do the simple XOR algorithm here
-        int fragSize = data.array().length / 2;
+        /*int fragSize = data.array().length / 2;
         byte[] x1 = new byte[fragSize];     int x1i = 0;
         byte[] x2 = new byte[fragSize];     int x2i = 0;
         byte[] p = new byte[fragSize];      int pi = 0;
@@ -54,9 +46,9 @@ public class Cluster extends HashSet<Fragment> {
             }
         }
 
-        add(new Fragment((short)1, AlgorithmSpec.XOR, uuid, x1));
-        add(new Fragment((short)1, AlgorithmSpec.XOR, uuid, x2));
-        add(new Fragment((short)1, AlgorithmSpec.XOR, uuid, p));
+        add(new Fragment((short)0, uuid, x1));
+        add(new Fragment((short)0, uuid, x2));
+        add(new Fragment((short)0, uuid, p));*/
     }
 
 
@@ -64,9 +56,8 @@ public class Cluster extends HashSet<Fragment> {
      * Create a new empty cluster.
      * This constructor can be used to collect fragments to eventually reconstruct the original data.
      */
-    public Cluster(UUID uuid, AlgorithmSpec algorithm) {
+    public Cluster(UUID uuid) {
         this.uuid = uuid;
-        this.algorithm = algorithm;
     }
 
 
@@ -75,7 +66,7 @@ public class Cluster extends HashSet<Fragment> {
      * @return Original data, or null if insufficient fragments in set
      */
     public byte[] reconstructData() {
-        // TODO Insert algorithm sub-class 00-magic here
+        // TODO Implement the Reed-Solomon algorithm
         // For now, just do the simple XOR algorithm here
         // Warning: This code is risky business! Is it safe? Is it correct on different systems?
         /*Iterator<Fragment> iter = iterator();
@@ -91,6 +82,6 @@ public class Cluster extends HashSet<Fragment> {
 
             return null;
         }*/
-        // TODO DAMMIT! The parity fragment needs to be marked in the format in order to cover the algorithm...
+        return null;    // Stub
     }
 }

@@ -7,7 +7,9 @@ import java.util.Map;
 /**
  * Enum to map algorithm names to their fragment format header values.
  * Created by tek-ti on 2014-09-11.
+ * @deprecated Wrote this enum as part of another idea. Don't use it. Might still come in handy someday...
  */
+@Deprecated
 public enum AlgorithmSpec {
     XOR ((short)1),
     HAMMING ((short)2),         // http://en.wikipedia.org/wiki/Hamming_code
