@@ -25,9 +25,9 @@ public class Fragment /*implements Serializable*/ {
     /**
      * Fragment role in the cluster.
      * This is a parameter essential for the fragment/defragment process.
-     * Basically, it identifies what part of the data this fragment corresponds to.
+     * Basically, it identifies what piece of the data this fragment corresponds to.
      */
-    private final byte part;    // TODO Use an enum for this?
+    private final byte piece;    // TODO Use an enum for this?
 
     /**
      * The actual fragment data.
@@ -37,23 +37,24 @@ public class Fragment /*implements Serializable*/ {
 
     /**
      * Constructor to be used when creating a fragment for the first time (during the fragmentation process).
-     * @param cluster Cluster UUID (type 3) containing a hash of the complete cluster data
-     * @param part What part of the cluster (algorithm-wise) this is
+     * @param cluster Cluster reference
+     * @param piece What piece of the cluster (algorithm-wise) this is
      * @param payload Payload data for this particular fragment
      */
-    public Fragment(UUID cluster, byte part, byte[] payload) {
+    public Fragment(Cluster cluster, byte piece, byte[] payload) {
+        this.cluster = cluster;
         this.payload = payload;
-        this.part = part;
+        this.piece = piece;
         this.fragUuid = UUID.nameUUIDFromBytes(getPayload());
     }
 
     /**
      * Constructor to be used internally when importing/parsing a fragment.
      */
-    private Fragment(Cluster cluster, UUID frag, byte part, byte[] payload) {
+    private Fragment(Cluster cluster, UUID frag, byte piece, byte[] payload) {
         this.cluster = cluster;
         this.fragUuid = frag;
-        this.part = part;
+        this.piece = piece;
         this.payload = payload;
     }
 
@@ -145,7 +146,7 @@ public class Fragment /*implements Serializable*/ {
         dout.writeInt(cluster.getOverhead());
 
         // Write fragment parameters
-        dout.writeByte(part);
+        dout.writeByte(piece);
 
         // Write payload size
         dout.writeInt(getPayload().length);
@@ -187,6 +188,15 @@ public class Fragment /*implements Serializable*/ {
      * @return Fragment UUID
      */
     public UUID getFragUuid() { return fragUuid; }
+
+    /**
+     * Get the flag indicating what piece of the original data this fragment corresponds to.
+     * This is essentially a parameter how to fit this fragment into the defragmentation algorithm.
+     * @return Fragment piece
+     */
+    public byte getPiece() {
+        return piece;
+    }
 
     /**
      * Get the payload data of this fragment.
