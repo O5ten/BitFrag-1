@@ -13,41 +13,55 @@ import java.util.UUID;
  */
 public class Cluster extends HashSet<Fragment> {
     /**
-     * Cluster UUID (type 3).
-     * This includes an MD5 hash of the original data.
+     * UUID (type 3) including a hash of the fully assembled data.
+     * This hash can be used to verify the complete cluster data upon an attempt to reconstruct the clusters' data.
      */
-    private final UUID uuid;
+    private final UUID uuid;    // This may also be a potential security issue as the any verification aid may help an exhaustive search.
 
     /**
-     * Cluster size.
-     * This is how many fragments the specified cluster contains.
+     * Size of the data contained within this cluster (in bytes).
+     */
+    private final int dataSize;
+
+    /**
+     * Amount of fragments associated with this cluster.
      */
     private final int clusterSize;
 
     /**
-     * Cluster overhead.
-     * This is how many fragments that are redundant to the original data.
+     * The amount of fragments that are redundant to the original data.
      * This is the amount of fragments that can be lost/tampered without compromizing the cluster.
      */
     private final int clusterOverhead;
 
     /**
-     * Fragment format version.
+     * Fragment format version of this cluster.
      */
     private final short formatVersion;
+
+    /**
+     * Supported fragment format as of this version.
+     * This works like a magic cookie to identify the fragment format. When the fragment format is changed, this number
+     * will be re-generated during development.
+     * So, just a little heads up for those of you who wishes to actually use BitFrag in its early versions:
+     * This may change in future versions with no backwards compatibility. However, when BitFrag hits its first stable
+     * release, there will be backwards compatibility in case of fragment format is changed.
+     */
+    public static final short SUPPORTED_FRAGMENT_VERSION = 0x6C96;    // Calculated by fair die roll
 
 
     /**
      * Create a new cluster from a set of original data.
-     * This is the constructor to use when creating a cluster for the first time.
+     * This is the constructor to invoke when creating a cluster for the first time.
      * The fragmentation process will occur in this constructor.
-     * This is when the data is split into fragments including the parity fragment.
-     * An instance created by this constructor is ready to use for distributing its fragments.
+     * This is when the data is split into fragments (including the parity fragment).
+     * An cluster created by this constructor is ready to be used for distributing its fragments.
      */
-    public Cluster(ByteBuffer data, int clusterSize, int clusterOverhead, short formatVersion) {
+    public Cluster(ByteBuffer data, int clusterSize, int clusterOverhead) {
+        this.dataSize = data.array().length;
         this.clusterSize = clusterSize;
         this.clusterOverhead = clusterOverhead;
-        this.formatVersion = formatVersion;
+        this.formatVersion = SUPPORTED_FRAGMENT_VERSION;
 
         // Calculate the cluster UUID (by hashing the original data) and create it
         this.uuid = UUID.nameUUIDFromBytes(data.array());
@@ -59,8 +73,7 @@ public class Cluster extends HashSet<Fragment> {
         int fragSizeSpare = dataRaw.length % 2;             // Is, clearly, either 0 or 1
         byte[] x1 = new byte[fragSize + fragSizeSpare];     int x1i = 0;
         byte[] x2 = new byte[fragSize];                     int x2i = 0;
-        byte[] p = new byte[fragSize];                      int pi = 0;
-        // Warning: This code is risky business! Is it safe? Is it correct on different systems?
+        byte[] p = new byte[fragSize + fragSizeSpare];      int pi = 0;
         while(dri < dataRaw.length) {
             // This is every even byte
             x1[x1i++] = dataRaw[dri++];
@@ -84,8 +97,9 @@ public class Cluster extends HashSet<Fragment> {
      * Create a new empty cluster.
      * This constructor can be used to collect fragments to eventually reconstruct the original data.
      */
-    public Cluster(UUID uuid, int clusterSize, int clusterOverhead, short formatVersion) {
+    public Cluster(UUID uuid, int dataSize, int clusterSize, int clusterOverhead, short formatVersion) {
         this.uuid = uuid;
+        this.dataSize = dataSize;
         this.clusterSize = clusterSize;
         this.clusterOverhead = clusterOverhead;
         this.formatVersion = formatVersion;
@@ -94,13 +108,12 @@ public class Cluster extends HashSet<Fragment> {
 
     /**
      * Use the current set of fragments in an attempt to reconstruct the original data.
-     * @return Original data, or null if insufficient fragments in set
+     * @return Original data, or null if insufficient fragments are set
      */
     public byte[] reconstructData() {
         // TODO Implement the Reed-Solomon algorithm. For now, just do the simple XOR algorithm here.
-        // Warning: This code is risky business! Is it safe? Is it correct on different systems?
         Iterator<Fragment> iter = iterator();
-        byte[] dataRaw = new byte[getSize()];   int dri = 0;
+        byte[] dataRaw = new byte[dataSize];    int dri = 0;    // TODO Use Java NIO?
         byte[] x1 = null;                       int x1i = 0;
         byte[] x2 = null;                       int x2i = 0;
         byte[] p = null;                        int pi = 0;
@@ -125,6 +138,7 @@ public class Cluster extends HashSet<Fragment> {
         }
 
         // Now, let's see what we have
+        // TODO Add the case where all fragments are known. In this case, parity should be used as a verification to detect/correct malicious fragment modifications
         if(x1 != null && x2 != null) {
             // This is the easiest case: Just byte-by-byte concatenate x1 and x2
             while(dri < dataRaw.length) {
@@ -134,7 +148,7 @@ public class Cluster extends HashSet<Fragment> {
                         dataRaw[dri++] = x1[x1i++];
                     } else {
                         // This is an erroneous state (x1 is less than required)!
-                        throw new Error("Erroneous state during defragmentation!");
+                        throw new Error("Erroneous state during reconstruction!");
                     }
                 } else {
                     // This is every odd byte
@@ -143,12 +157,10 @@ public class Cluster extends HashSet<Fragment> {
                     } else {
                         // There's an x1 but no x2. The previous byte was the last one. We're done here.
                         // Actually, this is an erroneous state (x2 is smaller than required)
-                        throw new Error("Erroneous state during defragmentation!");
+                        throw new Error("Erroneous state during reconstruction!");
                     }
                 }
             }
-
-            return dataRaw;
         } else if(x1 != null && p != null) {
             // In this case, we've got x1 and the parity
             while(dri < dataRaw.length) {
@@ -162,18 +174,16 @@ public class Cluster extends HashSet<Fragment> {
                             dataRaw[dri++] = (byte)(x1[x1i++] ^ p[pi++]);   // XOR operation to calculate x2 from parity
                         } else {
                             // This is an erroneous state (p is smaller than necessary)!
-                            throw new Error("Erroneous state during defragmentation!");
+                            throw new Error("Erroneous state during reconstruction!");
                             // Special case: There's an x1 but no p. This is the last byte.
                             //dataRaw[dri++] = x1[x1i++] /* ^ 0x00*/;         // XOR with padding not necessary
                         }
                     }
                 } else {
                     // This is an erroneous condition (x1 is smaller than necessary)!
-                    throw new Error("Erroneous state during defragmentation!");
+                    throw new Error("Erroneous state during reconstruction!");
                 }
             }
-
-            return dataRaw;
         } else if(x2 != null && p != null) {
             // This is _almost_ the same case as above, but with x2 instead if x1 (and a different special case)
             while(dri < dataRaw.length) {
@@ -185,7 +195,7 @@ public class Cluster extends HashSet<Fragment> {
                                                                         // Note that x2i is NOT incremented!
                         } else {
                             // This is an erroneous condition (p is smaller than necessary)!
-                            throw new Error("Erroneous state during defragmentation!");
+                            throw new Error("Erroneous state during reconstruction!");
                             // Special case: There's an x2 but no p left. Use padding.
                             //dataRaw[dri++] = x2[x2i++]/* ^ 0x00*/;  // XOR with padding not necessary
                         }
@@ -199,23 +209,23 @@ public class Cluster extends HashSet<Fragment> {
                         dataRaw[dri++] = p[pi++]/* ^ 0x00*/;    // XOR with padding not necessary
                     } else {
                         // This is an erroneous state (p is smaller than necessary)!
-                        throw new Error("Erroneous state during defragmentation!");
+                        throw new Error("Erroneous state during reconstruciton!");
                     }
                 }
-            }
-
-            // Calculate (and verify) the supplied hash with the defragged data
-            UUID verification = UUID.nameUUIDFromBytes(dataRaw);
-            if(!verification.equals(getUuid())) {
-                // Verification failed
-                return null;    // TODO Throw exception or is this a totally good communication of hash failure?
-            } else {
-                // All cases have been covered. Success!
-                return dataRaw;
             }
         } else {
             // There are insufficient fragments to reconstruct the data!
             return null;        // TODO Throw exception?
+        }
+
+        // Calculate (and verify) the supplied hash with the defragged data
+        UUID verification = UUID.nameUUIDFromBytes(dataRaw);
+        if(!verification.equals(getUuid())) {
+            // Verification failed
+            return null;    // TODO Throw exception!
+        } else {
+            // All cases have been covered. Success!
+            return dataRaw;
         }
     }
 
@@ -231,11 +241,22 @@ public class Cluster extends HashSet<Fragment> {
             return false;
         } else {
             Cluster otherCluster = (Cluster)other;
-            return getSize() == otherCluster.getSize() &&           // Is this big chunk of lines good-looking code?
+            return getClusterSize() == otherCluster.getClusterSize() &&           // Is this big chunk of lines good-looking code?
                     getOverhead() == otherCluster.getOverhead() &&
                     getFormatVersion() == otherCluster.getFormatVersion() &&
-                    getUuid().equals(otherCluster.getUuid());      // TODO Verify that this resolves as intended
+                    getUuid().equals(otherCluster.getUuid());
         }   // Wow, this method looks like hell, haha!
+    }
+
+    @Override
+    public int hashCode() {
+        // Quite sloppy way really. Certainly not uniform in practice but should work for now.
+        // TODO Do a proper hash (may boost performance in large data sets)
+        return (clusterSize != 0 ? clusterSize : 0) *
+                (clusterOverhead != 0 ? clusterOverhead : 0) *
+                (formatVersion != 0 ? formatVersion : 0) *
+                (int)getUuid().getMostSignificantBits() *
+                (int)getUuid().getLeastSignificantBits();
     }
 
     /**
@@ -251,10 +272,16 @@ public class Cluster extends HashSet<Fragment> {
     public UUID getUuid() { return uuid; }
 
     /**
+     * Get the size of the data contained within this cluster (in bytes).
+     * @return Data size
+     */
+    public int getDataSize() { return dataSize; }
+
+    /**
      * Get the specified cluster size.
      * @return Cluster size
      */
-    public int getSize() { return clusterSize; }
+    public int getClusterSize() { return clusterSize; }
 
     /**
      * Get the specified cluster overhead.

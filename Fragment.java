@@ -9,22 +9,21 @@ import java.util.UUID;
  */
 public class Fragment /*implements Serializable*/ {
     /**
-     * UUID/Hash of the fully assembled data (aka the cluster UUID).
-     * This hash can be used to verify the complete cluster data upon an attempt to defragment the cluster.
-     * This may also be a potential security issue as the hash may help in a brute force scenario.
+     * Reference to the cluster that this fragment is associated with.
+     * Upon importing a fragment using parseFragment(), this will be a new cluster with the according parameters as
+     * imported. This reference can (and should) later be updated using the mergeInto() method.
      */
     private Cluster cluster;
 
     /**
-     * Universal Unique IDentifier (type 3) for this particular fragment.
-     * This is a type 3 (or version 3) UUID meaning it contains an MD5 hash apart from UUID version tag.
-     * The MD5 hash (or "name") in the UUID is a hash of the fragment payload data.
+     * UUID (type 3) including a hash of the fragment payload.
+     * This hash can be used to verify the fragment payload data.
      */
     private final UUID fragUuid;
 
     /**
      * Fragment role in the cluster.
-     * This is a parameter essential for the fragment/defragment process.
+     * This is a parameter essential for the fragment/reconstruct process.
      * Basically, it identifies what piece of the data this fragment corresponds to.
      */
     private final byte piece;    // TODO Use an enum for this?
@@ -61,19 +60,19 @@ public class Fragment /*implements Serializable*/ {
 
     /**
      * Parse a possible fragment from an open input stream.
-     * The input stream have to initialized and readable.
+     * The input stream have to be initialized and readable.
      * This method will read an arbitrary amount of data from the stream (hence advancing its position).
      * @param src Open and readable input stream to read fragment from
      * @return A verified fragment
      * @throws IOException Upon a failed stream operation
-     * @throws FragmentFormatException If fragment UUID (hash sum) mismatches with the payload data. Note that this is a subclass to IOException and should hence be caught before IOException!
+     * @throws FragmentFormatException If fragment UUID (hash sum) mismatches with the payload data
      */
     static Fragment parseFragment(InputStream src) throws IOException, FragmentFormatException {  // TODO Use Serialization API instead?
         DataInputStream din = new DataInputStream(src);
 
         // Read version header
         short hVersion = din.readShort();
-        if(hVersion != 1) {     // The only supported/expected version as of now
+        if(hVersion != Cluster.SUPPORTED_FRAGMENT_VERSION) {     // The only supported/expected version as of now
             throw new FragmentFormatException("Unsupported version header: " + hVersion);
         }
 
@@ -90,6 +89,7 @@ public class Fragment /*implements Serializable*/ {
         // Keep this for later
 
         // Read cluster parameters
+        int hDataSize = din.readInt();
         int hClusterSize = din.readInt();
         int hClusterOverhead = din.readInt();
 
@@ -100,17 +100,24 @@ public class Fragment /*implements Serializable*/ {
         int hPayloadSize = din.readInt();
 
         // Finally, read the payload data
-        byte[] hPayload = new byte[hPayloadSize];   // TODO Consider fancy Java API? (ByteBuffer / BufferedReader)
-                                                    // TODO Protect against aggressive mallocs?
+        byte[] hPayload = new byte[hPayloadSize];   // TODO Protect against aggressive mallocs?
+        int hPayloadRead = din.read(hPayload);
+        if(hPayloadRead != hPayloadSize) {
+            throw new FragmentFormatException("Insufficient payload data: " + hPayloadSize + " != " + hPayloadRead);
+        }
 
         // But first, let's do a consistency check!
         UUID checkUuid = UUID.nameUUIDFromBytes(hPayload);
         if(!checkUuid.equals(hFUuid)) {
             // Consistency check failed!
-            throw new FragmentFormatException("Fragment possibly currupted (hash check failed)");
+            throw new FragmentFormatException("Fragment possibly corrupted (hash check failed)");
         }
 
-        return new Fragment(new Cluster(hCUuid, hClusterSize, hClusterOverhead, hVersion), hFUuid, hPart, hPayload);
+        // Create the fresh fragment with preliminary cluster and link them properly
+        Cluster hCluster = new Cluster(hCUuid, hDataSize, hClusterSize, hClusterOverhead, hVersion);
+        Fragment frag = new Fragment(hCluster, hFUuid, hPart, hPayload);
+        hCluster.add(frag);
+        return frag;
 
         /* Hey! There's room for some optimization here! The way a new cluster is created for each fragment can be
          * refactored to using some sort of FragmentParser that holds discovered clusters - in, say, a HashMap - and
@@ -142,7 +149,8 @@ public class Fragment /*implements Serializable*/ {
         dout.writeLong(getFragUuid().getLeastSignificantBits());
 
         // Write cluster parameters
-        dout.writeInt(cluster.getSize());
+        dout.writeInt(cluster.getDataSize());
+        dout.writeInt(cluster.getClusterSize());
         dout.writeInt(cluster.getOverhead());
 
         // Write fragment parameters
@@ -165,12 +173,34 @@ public class Fragment /*implements Serializable*/ {
      * @param destination Existing cluster to merge this fragment into.
      * @throws InvalidClusterException If this fragments' cluster specification does no match the destination cluster
      */
-    public void mergeInto(Cluster destination) throws InvalidClusterException {
-        if(getCluster().equals(destination)) {
-            this.cluster = destination;
+    public void mergeInto(Cluster destination) throws InvalidClusterException { // TODO Really use an exception for this?
+        if(cluster.equals(destination)) {
+            if(destination.add(this)) {
+                // Successfully added this fragment to the cluster
+                this.cluster = destination;
+            } else {
+                // This fragment already exists in the cluster
+            }
             //System.gc();
         } else {
             throw new InvalidClusterException("Fragment does not match to cluster");
+        }
+    }
+
+    /**
+     * Matches this fragment to another.
+     * For two fragments to be considered the same, all fragment parameters and the UUID must match.
+     * @param other Another fragment instance to compare to
+     * @return true if all essential properties of the instances match (and hence are the same fragment), false otherwise
+     */
+    @Override
+    public boolean equals(Object other) {
+        if(other == null || !(other instanceof Fragment)) {  // Yep, instanceof. What can you do about it!? :/
+            return false;
+        } else {
+            Fragment otherFrag = (Fragment)other;
+            return getPiece() == otherFrag.getPiece() &&
+                    getFragUuid().equals(otherFrag.getFragUuid());  // Lets _not_ match payload data (UUID will suffice)
         }
     }
 
@@ -191,7 +221,7 @@ public class Fragment /*implements Serializable*/ {
 
     /**
      * Get the flag indicating what piece of the original data this fragment corresponds to.
-     * This is essentially a parameter how to fit this fragment into the defragmentation algorithm.
+     * This is essentially a parameter how to fit this fragment into the reconstruction algorithm.
      * @return Fragment piece
      */
     public byte getPiece() {

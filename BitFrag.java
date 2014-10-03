@@ -5,26 +5,24 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.UUID;
 
 /**
- * Chops a stream or block of bytes into fragments.
+ * Execution class for BitFrag v0.1.
+ * Super simple and trivial as of this early version.
  * Created by tek-ti on 2014-09-08.
  */
 public class BitFrag {
     public static void main(String argv[]) {
         // Here be spagetti code for now
-
         if(argv.length < 1) {
             System.out.println("BitFrag v0.1");
             System.out.println("Usage: BitFrag [-d] <file(s)>");
             System.out.println();
-            System.out.println("\t-d\tDefrag files");
+            System.out.println("\t-d\tDefrag (reconstruct) files");
             System.exit(1);
         } else if(argv.length > 2 || argv[0].equals("-d")) {
-            // Do defragmentation of input files
-            System.out.println("BitFrag v0.1 - Defragger mode");
+            // Do reconstruction of input files
+            System.out.println("BitFrag v0.1 - Reconstruction mode");
             // Open and read all input files
             HashSet<Fragment> frags = new HashSet<Fragment>();
             for(int i = 1; i < argv.length; i++) {
@@ -43,33 +41,28 @@ public class BitFrag {
             }
 
             // Now try to match these fragments to each other in order to build a cluster (if possible)
-            // TODO Put this in some helper class?
-            HashSet<Cluster> clusters = new HashSet<Cluster>();
-            for(Fragment frag : frags) {    // TODO THIS CODE MISBEHAVES!
-                if(clusters.add(frag.getCluster())) {
+            // TODO Put this in some helper class? Maybe get that "mapper" done?
+            HashSet<Cluster> knownClusters = new HashSet<Cluster>();
+            for(Fragment frag : frags) {
+                if(knownClusters.add(frag.getCluster())) {
                     // This is a newly discovered cluster!
-                    System.out.println("Discovered cluster: " + frag.getCluster().getUuid());
                 } else {
                     // Since this fragments' cluster is already known, merge into it!
-                    for(Cluster clust : clusters) {
+                    for(Cluster clust : knownClusters) {
                         // A little bit of a hassle, but find the known cluster this way...
                         if(frag.getCluster().equals(clust)) {
                             try {
                                 frag.mergeInto(clust);
-                                //System.out.println("Merged fragment " + frag.getFragUuid() + " into cluster " + clust.getUuid());
                             } catch(InvalidClusterException e) {
-                                // The premises to this exception are covered and hence will not occur
+                                // The premises to this exception are covered and hence it will not occur
                             }
                         }
                     }
                 }
             }
 
-            // Attempt to defrag all discovered clusters (if possible)
-            for(Cluster clust : clusters) {
-                /*for(Iterator<Fragment> it = clust.iterator(); it.hasNext();) {
-                    System.out.println("Cluster " + clust.getUuid() + " contains " + it.next().getFragUuid());
-                }*/
+            // Attempt to reconstruct all discovered clusters (if possible)
+            for(Cluster clust : knownClusters) {
                 System.out.print("Reconstructing data for cluster " + clust.getUuid() + ": ");
                 System.out.flush();
                 byte[] data = clust.reconstructData();
@@ -93,13 +86,13 @@ public class BitFrag {
             }
         } else {
             // Do fragmentation of input file
-            System.out.println("BitFrag v0.1 - Fragger mode");
+            System.out.println("BitFrag v0.1 - Fragmentation mode");
             try {
                 // Open and read the input file
                 FileChannel infile = FileChannel.open(new File(argv[0]).toPath(), StandardOpenOption.READ);
-                ByteBuffer data = ByteBuffer.allocate((int)infile.size());    // Hmm.. Ugly typecast.
+                ByteBuffer data = ByteBuffer.allocate((int)infile.size());    // Hmm.. Ugly.
                 infile.read(data);
-                Cluster cluster = new Cluster(data, 3, 1, (short)1);   // The parameters are "ignored" as of now
+                Cluster cluster = new Cluster(data, 3, 1);   // The parameters are "ignored" as of now
 
                 System.out.println("Created cluster " + cluster.getUuid());
                 System.out.println("Writing fragments to files:");
