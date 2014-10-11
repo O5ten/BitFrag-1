@@ -1,6 +1,6 @@
 # BitFrag
 
-*"Don't put all your bits into the same basket!"*
+*"Don't put all your bits in one basket!"*
 
 
 ## Background
@@ -32,10 +32,10 @@ BitFrag works with any arbitrary data but some specific applications that comes 
 
 ## Project status
 
-This project arose out of a simple ide and prospered into an idea of bigger picture. The code is still in its early versions.
+This project arose out of a simple idea and prospered into an idea of bigger picture. The code is still in its early versions.
 
 ### v0.1
-* The final algorithm is not yet written. As of now, a much simpler version of the algorithm is implemented as a *proof of concept*.
+* The final algorithm is not yet written. As of now, a much simpler version of the algorithm is implemented as a *proof of concept prototype*.
 * The code structure is brief.
 * The fragment format is preliminary.
 
