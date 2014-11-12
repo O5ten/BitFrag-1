@@ -63,7 +63,7 @@ public class BitFrag {
 
             // Attempt to reconstruct all discovered clusters (if possible)
             for(Cluster clust : knownClusters) {
-                System.out.print("Reconstructing data for cluster " + clust.getUuid() + ": ");
+                System.out.print("Reconstructing data for cluster " + clust.getId() + ": ");
                 System.out.flush();
                 byte[] data = clust.reconstructData();
                 if(data == null) {
@@ -72,7 +72,7 @@ public class BitFrag {
                 } else {
                     // Success
                     System.out.println("Success!");
-                    File outfile = new File(clust.getUuid() + ".cluster");  // Keep it this simple for now
+                    File outfile = new File(clust.getId() + ".cluster");  // Keep it this simple for now
                     System.out.print("Writing data to file: " + outfile + ": ");
                     System.out.flush();
                     try {
@@ -94,7 +94,7 @@ public class BitFrag {
                 infile.read(data);
                 Cluster cluster = new Cluster(data, 3, 1);   // The parameters are "ignored" as of now
 
-                System.out.println("Created cluster " + cluster.getUuid());
+                System.out.println("Created cluster " + cluster.getId());
                 System.out.println("Writing fragments to files:");
                 for(Fragment frag : cluster) {
                     // Write this fragment to the file system (limited to current directory for now)
