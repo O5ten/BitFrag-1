@@ -20,23 +20,14 @@ public class ReconstructionException extends Exception {
     private final UUID actualDigest;
 
     /**
-     * A reference to the reconstructed data.
-     * This data should be considered unreliable since its digest check failed.
-     * But it can be accessed in case of further interest.
-     */
-    private final ByteBuffer unreliableData;
-
-    /**
      * Constructor with necessary details.
      * @param invalidDigest Supplied invalid digest
      * @param actualDigest Calculated digest
-     * @param unreliableData The unreliably reconstructed data
      */
-    public ReconstructionException(UUID invalidDigest, UUID actualDigest, ByteBuffer unreliableData) {
+    public ReconstructionException(UUID invalidDigest, UUID actualDigest) {
         super(invalidDigest + " != " + actualDigest);
         this.invalidDigest = invalidDigest;
         this.actualDigest = actualDigest;
-        this.unreliableData = unreliableData;
     }
 
 
@@ -54,15 +45,5 @@ public class ReconstructionException extends Exception {
      */
     public UUID getActualDigest() {
         return actualDigest;
-    }
-
-    /**
-     * Returns a reference to the reconstructed data.
-     * This should be considered unreliable since its digest check failed.
-     * But it can be accessed in case of further interest.
-     * @return Unreliable data
-     */
-    public ByteBuffer getUnreliableData() {
-        return unreliableData;
     }
 }

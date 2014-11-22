@@ -1,7 +1,9 @@
 package net.comploud.code.bitfrag;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -13,25 +15,10 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 public class XORAlgorithm implements Algorithm {
     /**
-     * Size of the data contained within this cluster (in bytes).
+     * Cluster upon which methods will operate.
      */
-    private final int dataSize;
-
-    /**
-     * Amount of fragments associated with this cluster.
-     */
-    private final int clusterSize;
-
-    /**
-     * The amount of fragments that are redundant to the original data.
-     * This is the amount of fragments that can be lost/tampered without compromizing the cluster.
-     */
-    private final int clusterOverhead;
-
-    /**
-     * Fragment format version of this cluster.
-     */
-    private final short formatVersion;
+    protected Cluster<XORFragment> cluster;
+    // TODO This is a bad programming pattern. Use generics in the interface instead. But how!? (See Algorithm.java)
 
     /**
      * Supported fragment format as of this version.
@@ -41,14 +28,15 @@ public class XORAlgorithm implements Algorithm {
      * This may change in future versions with no backwards compatibility. However, when BitFrag hits its first stable
      * release, there will be backwards compatibility in case of fragment format is changed.
      */
-    public static final short SUPPORTED_FRAGMENT_VERSION = 0x6C96;    // Calculated by fair die roll
+    public static final short SUPPORTED_FRAGMENT_VERSION = (short)0xDCA1;    // Calculated by fair die roll
 
 
-    public XORAlgorithm(ByteBuffer data, int clusterSize, int clusterOverhead) {
-        this.dataSize = data.array().length;
-        this.clusterSize = clusterSize;
-        this.clusterOverhead = clusterOverhead;
-        this.formatVersion = SUPPORTED_FRAGMENT_VERSION;
+    /**
+     * Constructor.
+     * @param cluster The cluster to operate upon
+     */
+    public XORAlgorithm(Cluster<XORFragment> cluster) {
+        this.cluster = cluster;
     }
 
 
@@ -57,7 +45,7 @@ public class XORAlgorithm implements Algorithm {
      * @param input The raw input data to frag
      * @return A fresh complete cluster
      */
-    public Cluster fragment(ByteBuffer input) {
+    public Cluster<XORFragment> fragment(ByteBuffer input) {
         Cluster<XORFragment> clust = new Cluster<XORFragment>(UUID.nameUUIDFromBytes(input.array()));
 
         // Perform fragmentation
@@ -81,23 +69,23 @@ public class XORAlgorithm implements Algorithm {
             }
         }
 
-        clust.add(new XORFragment(clust, (byte)1, ByteBuffer.wrap(x1)));   // TODO Use enum or something neat to represent the piece parameter?
-        clust.add(new XORFragment(clust, (byte)2, ByteBuffer.wrap(x2)));
-        clust.add(new XORFragment(clust, (byte)3, ByteBuffer.wrap(p)));
+        int clusterDataSize = dataRaw.length;
+        clust.add(new XORFragment(SUPPORTED_FRAGMENT_VERSION, clust.getId(), UUID.nameUUIDFromBytes(x1), clusterDataSize, (byte)1, ByteBuffer.wrap(x1)));   // TODO Use enum or something neat to represent the piece parameter?
+        clust.add(new XORFragment(SUPPORTED_FRAGMENT_VERSION, clust.getId(), UUID.nameUUIDFromBytes(x2), clusterDataSize, (byte)2, ByteBuffer.wrap(x2)));
+        clust.add(new XORFragment(SUPPORTED_FRAGMENT_VERSION, clust.getId(), UUID.nameUUIDFromBytes(p), clusterDataSize, (byte)3, ByteBuffer.wrap(p)));
         return clust;
     }
 
     /**
      * Attempt a data reconstruction operation by the specified cluster.
-     * @param cluster Complete or partial cluster
      * @param output Destination buffer to write the reconstructed data, if possible
      * @return Reconstruction report with further details
      * @throws InsufficientFragmentsException If insufficient fragments are provided by the cluster
      * @throws ReconstructionException if the cluster digest (UUID) check fails
      */
-    public ReconstructionReport reconstruct(Cluster cluster, ByteBuffer output) throws InsufficientFragmentsException, ReconstructionException {
+    public ReconstructionReport reconstruct(ByteBuffer output) throws InsufficientFragmentsException, ReconstructionException {
         Iterator<XORFragment> iter = cluster.iterator();
-        byte[] dataRaw = new byte[dataSize];    int dri = 0;    // TODO Use Java NIO?
+        byte[] dataRaw = new byte[concurDataSize()];    int dri = 0;    // TODO Use Java NIO? Yes, use Java NIO!
         byte[] x1 = null;                       int x1i = 0;
         byte[] x2 = null;                       int x2i = 0;
         byte[] p = null;                        int pi = 0;
@@ -200,7 +188,7 @@ public class XORAlgorithm implements Algorithm {
             }
         } else {
             // There are insufficient fragments to reconstruct the data!
-            int missing = 3 - (x1 != null ? 1 : 0) + (x1 != null ? 1 : 0) + (p != null ? 1 : 0);
+            int missing = 3 - (x1 == null ? 1 : 0) - (x2 == null ? 1 : 0) - (p == null ? 1 : 0);
             throw new InsufficientFragmentsException(missing);
         }
 
@@ -208,38 +196,82 @@ public class XORAlgorithm implements Algorithm {
         UUID verification = UUID.nameUUIDFromBytes(dataRaw);
         if(!verification.equals(cluster.getId())) {
             // Verification failed
-            throw new ReconstructionException(cluster.getId(), verification, ByteBuffer.wrap(dataRaw));
+            throw new ReconstructionException(cluster.getId(), verification);
         } else {
             // All cases have been covered. Success!
             output.put(dataRaw);    // Copy the internal buffer into the caller specified buffer
-            int missing = 0 + (x1 == null ? 1 : 0) + (x1 == null ? 1 : 0) + (p == null ? 1 : 0);
+            output.flip();
+            // TODO Not sure about this... Just returning this might be easier? Or put() in the output buffer in the first place!
+
+            int missing = (x1 == null ? 1 : 0) + (x2 == null ? 1 : 0) + (p == null ? 1 : 0);
             // TODO Actually identify the corrupted and tempered fragments
             return new ReconstructionReport(missing, new CopyOnWriteArraySet<Fragment>(), new CopyOnWriteArraySet<Fragment>());
         }
+
+        /*
+         * In theory, this algorithm is very parallelizable ("parallelizable" is now a word!). But given the simplicity
+         * of the core operations (the XOR operation and some occasional branches) this may be counter productive.
+         * The added complexity of spawning threads and distributing work - not to mention cache coherency - might
+         * simply end up with greater execution times. However, if the core algorithm operations were more
+         * computationally complex, parallelizing this method could be beneficial (if the computations exceeds the
+         * IO_WAIT time). Might be worthwhile a consideration for the Reed-Solomon algorithm?
+         */
     }
 
-    /**
-     * Get the fragment format version.
-     * @return Fragment format version
-     */
-    public int getFormatVersion() { return formatVersion; }
+    // TODO Add consensus check for the fragment headers (concurDataSize(), etc)
 
     /**
-     * Get the size of the data contained within this cluster (in bytes).
-     * @return Data size
+     * Concur upon the data size.
+     * This is a non-trivial operation.
+     * @see net.comploud.code.bitfrag.Algorithm
+     * @return Data size (in bytes)
+     * @throws InsufficientFragmentsException If cluster is empty
      */
-    public int getDataSize() { return dataSize; }
+    @Override
+    public int concurDataSize() throws InsufficientFragmentsException {
+        // Perform consensus negotiation recursively upon the cluster
+        return concurDataSizeRecv(new HashMap<Integer, Integer>(), cluster.iterator());
+    }
+    // TODO Move this method (and helper method) to an AbstractAlgorithm implementation? If moving of getClusterDataSize() to Fragment interface is a good idea, that is...
+    private int concurDataSizeRecv(Map<Integer, Integer> observed, Iterator<XORFragment> left) throws InsufficientFragmentsException {
+        if(left.hasNext()) {
+            // Process the next fragment
+            XORFragment frag = left.next();
+            int fragValue = frag.getClusterDataSize();
+            Integer count = observed.get(fragValue);
+            if(count == null) {
+                // This is the first observation of this value
+                observed.put(fragValue, 1);
+            } else {
+                // Increase the count of this observation
+                ++count;
+                //observed.put(fragValue, count);   // Not necessary since count is a reference to the Integer object already in the map
+            }
 
-    /**
-     * Get the specified cluster size.
-     * @return Cluster size
-     */
-    public int getClusterSize() { return clusterSize; }
+            // Proceed with recursion
+            return concurDataSizeRecv(observed, left);
+        } else {
+            // There are no more fragments to inspect
 
-    /**
-     * Get the specified cluster overhead.
-     * @return Cluster overhead
-     */
-    public int getOverhead() { return clusterOverhead; }
+            // Find the most observed value
+            Map.Entry<Integer, Integer> winner = null;
+            for(Map.Entry<Integer, Integer> observation : observed.entrySet()) {
+                if(winner == null) {
+                    winner = observation;
+                } else if(observation.getValue() > winner.getValue()) {
+                    winner = observation;
+                }
+                // else: Do nothing and proceed to next map entry
+            }
 
+            // We're done here
+            if(winner == null) {
+                // There were no fragments in the cluster to begin with!
+                throw new InsufficientFragmentsException(0);
+            } else {
+                // This is the end of recursion
+                return winner.getKey();
+            }
+        }
+    }
 }

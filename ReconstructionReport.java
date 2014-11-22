@@ -45,6 +45,20 @@ public class ReconstructionReport {
 
 
     /**
+     * Checks if reconstruction succeeded flawlessly.
+     * If there were any complications (missing, corrupted and/or tempered fragments) this method will briefly hint such
+     * with a boolean.
+     * @returns true if there were no complications at all, or false otherwise
+     */
+    public boolean flawless() {
+        if(missing == 0 && corrupted.isEmpty() && tampered.isEmpty()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * The amount of fragments that were missing.
      * @return The amount of fragments missing
      */
