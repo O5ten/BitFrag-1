@@ -70,7 +70,7 @@ public class BinaryXORFragmentReader implements FragmentReader {
         UUID checkUuid = UUID.nameUUIDFromBytes(hPayload);
         if(!checkUuid.equals(hFUuid)) {
             // Consistency check failed!
-            throw new FragmentFormatException("Fragment possibly corrupted (digest check failed)");
+            throw new FragmentFormatException("net.comploud.code.bitfrag.Fragment possibly corrupted (digest check failed)");
         }
 
         // Create fragment

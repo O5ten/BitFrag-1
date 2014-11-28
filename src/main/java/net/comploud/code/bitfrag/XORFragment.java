@@ -122,7 +122,7 @@ public class XORFragment implements Fragment, FragmentWriter/*, Serializable*/ {
 
     /**
      * Get the type 3 UUID for this particular fragment.
-     * @return Fragment UUID
+     * @return net.comploud.code.bitfrag.Fragment UUID
      */
     @Override
     public UUID getId() { return fragId; }
@@ -137,7 +137,7 @@ public class XORFragment implements Fragment, FragmentWriter/*, Serializable*/ {
 
     /**
      * Get the cluster ID header.
-     * @return Cluster ID
+     * @return net.comploud.code.bitfrag.Cluster ID
      */
     @Override
     public UUID getClusterId() {
@@ -146,7 +146,7 @@ public class XORFragment implements Fragment, FragmentWriter/*, Serializable*/ {
 
     /**
      * Get the cluster data size header.
-     * @return Cluster data size
+     * @return net.comploud.code.bitfrag.Cluster data size
      */
     public int getClusterDataSize() {
         return clusterDataSize;
@@ -155,7 +155,7 @@ public class XORFragment implements Fragment, FragmentWriter/*, Serializable*/ {
     /**
      * Get the flag indicating what piece of the original data this fragment corresponds to.
      * This is essentially a parameter how to fit this fragment into the reconstruction algorithm.
-     * @return Fragment piece
+     * @return net.comploud.code.bitfrag.Fragment piece
      */
     public byte getPiece() {
         return piece;

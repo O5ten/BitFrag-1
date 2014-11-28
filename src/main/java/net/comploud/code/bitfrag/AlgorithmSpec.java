@@ -54,6 +54,6 @@ public enum AlgorithmSpec {
      */
     public short headerValue() { return header; }
 
-    // TODO Figure out a fantastic way of overriding getter for a sub-class of Algorithm and all that jacked-up OO-magic
-    //public abstract Class<Algorithm> getAlgorithm();
+    // TODO Figure out a fantastic way of overriding getter for a sub-class of net.comploud.code.bitfrag.Algorithm and all that jacked-up OO-magic
+    //public abstract Class<net.comploud.code.bitfrag.Algorithm> getAlgorithm();
 }

@@ -10,13 +10,13 @@ import java.util.UUID;
 public interface Fragment {
     /**
      * Returns the UUID for this fragment.
-     * @return Fragment ID
+     * @return net.comploud.code.bitfrag.Fragment ID
      */
     public UUID getId();        // TODO Use custom implementation of UUID (with possibilities of smaller sizes)?
 
     /**
      * Returns the UUID of the cluster of which this fragment is associated with.
-     * @return Cluster ID
+     * @return net.comploud.code.bitfrag.Cluster ID
      */
     public UUID getClusterId();
 

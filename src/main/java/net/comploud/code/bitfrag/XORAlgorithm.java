@@ -15,17 +15,17 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 public class XORAlgorithm implements Algorithm {
     /**
-     * Cluster upon which methods will operate.
+     * net.comploud.code.bitfrag.Cluster upon which methods will operate.
      */
     protected Cluster<XORFragment> cluster;
-    // TODO This is a bad programming pattern. Use generics in the interface instead. But how!? (See Algorithm.java)
+    // TODO This is a bad programming pattern. Use generics in the interface instead. But how!? (See net.comploud.code.bitfrag.Algorithm.java)
 
     /**
      * Supported fragment format as of this version.
      * This works like a magic cookie to identify the fragment format. When the fragment format is changed, this number
      * will be re-generated during development.
-     * So, just a little heads up for those of you who wishes to actually use BitFrag in its early versions:
-     * This may change in future versions with no backwards compatibility. However, when BitFrag hits its first stable
+     * So, just a little heads up for those of you who wishes to actually use net.comploud.code.bitfrag.BitFrag in its early versions:
+     * This may change in future versions with no backwards compatibility. However, when net.comploud.code.bitfrag.BitFrag hits its first stable
      * release, there will be backwards compatibility in case of fragment format is changed.
      */
     public static final short SUPPORTED_FRAGMENT_VERSION = (short)0xDCA1;    // Calculated by fair die roll
@@ -232,7 +232,7 @@ public class XORAlgorithm implements Algorithm {
         // Perform consensus negotiation recursively upon the cluster
         return concurDataSizeRecv(new HashMap<Integer, Integer>(), cluster.iterator());
     }
-    // TODO Move this method (and helper method) to an AbstractAlgorithm implementation? If moving of getClusterDataSize() to Fragment interface is a good idea, that is...
+    // TODO Move this method (and helper method) to an AbstractAlgorithm implementation? If moving of getClusterDataSize() to net.comploud.code.bitfrag.Fragment interface is a good idea, that is...
     private int concurDataSizeRecv(Map<Integer, Integer> observed, Iterator<XORFragment> left) throws InsufficientFragmentsException {
         if(left.hasNext()) {
             // Process the next fragment
