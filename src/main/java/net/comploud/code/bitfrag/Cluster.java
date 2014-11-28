@@ -16,7 +16,7 @@ public class Cluster<T extends Fragment> extends HashSet<T> {
      */
     private final UUID uuid;    // This may also be a potential security issue as the any verification aid may help an exhaustive search.
 
-    // TODO Add reference to net.comploud.code.bitfrag.Algorithm?
+    // TODO Add reference to Algorithm?
 
     /**
      * Create a new cluster.
@@ -33,10 +33,10 @@ public class Cluster<T extends Fragment> extends HashSet<T> {
      */
     /*@Override
     public boolean equals(Object other) {
-        if(other == null || !(other instanceof net.comploud.code.bitfrag.Cluster)) {  // Yep, instanceof. What can you do about it!? :/
+        if(other == null || !(other instanceof Cluster)) {  // Yep, instanceof. What can you do about it!? :/
             return false;
         } else {
-            net.comploud.code.bitfrag.Cluster otherCluster = (net.comploud.code.bitfrag.Cluster)other;
+             Cluster otherCluster = (Cluster)other;
             return getClusterSize() == otherCluster.getClusterSize() &&           // Is this big chunk of lines good-looking code?
                     getOverhead() == otherCluster.getOverhead() &&
                     getFormatVersion() == otherCluster.getFormatVersion() &&
@@ -58,7 +58,7 @@ public class Cluster<T extends Fragment> extends HashSet<T> {
 
     /**
      * Get the type 3 UUID for the complete cluster data.
-     * @return net.comploud.code.bitfrag.Cluster UUID
+     * @return Cluster UUID
      */
     public UUID getId() { return uuid; }
 

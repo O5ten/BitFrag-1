@@ -8,7 +8,7 @@ if [ "$0" != "./build.sh" ]; then
     exit 1
 fi
 mkdir -p build
-javac -d ./build *.java
+javac -d ./build/ src/main/java/net/comploud/code/bitfrag/*.java
 cd build
 jar cvef net.comploud.code.bitfrag.BitFrag BitFrag.jar *
 echo 'Tadaa! One BitFrag.jar created. Run it with "java -jar BitFrag.jar"'

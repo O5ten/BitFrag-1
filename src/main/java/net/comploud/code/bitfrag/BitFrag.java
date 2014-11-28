@@ -7,18 +7,18 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 
 /**
- * Execution class for net.comploud.code.bitfrag.BitFrag v0.1.
+ * Execution class for BitFrag v0.1.
  * Super simple and trivial as of this early version.
  * Created by tek-ti on 2014-09-08.
  */
 public class BitFrag {
-    private static final String banner = "net.comploud.code.bitfrag.BitFrag v0.1.1";
+    private static final String banner = "BitFrag v0.1.1";
 
     public static void main(String argv[]) {
         // Here be spagetti code for now
         if(argv.length < 1) {
             System.out.println(banner);
-            System.out.println("Usage: net.comploud.code.bitfrag.BitFrag [-d] <file(s)>");
+            System.out.println("Usage: BitFrag [-d] <file(s)>");
             System.out.println();
             System.out.println("\t-d\tDefrag (reconstruct) files");
             System.exit(1);

@@ -38,7 +38,7 @@ public class FragmentMapper {
      * Maps a fragment into its cluster.
      * If the fragments specified cluster is known, it will be added to that cluster. If not, a new cluster data
      * structure will be created prior to the fragment being added.
-     * @param frag net.comploud.code.bitfrag.Fragment to map
+     * @param frag Fragment to map
      * @return true if a new cluster was discovered, false if the cluster was already known
      */ // TODO This method contains unchecked generics...
     public synchronized boolean map(Fragment frag) {

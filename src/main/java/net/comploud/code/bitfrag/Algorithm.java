@@ -41,7 +41,7 @@ public interface Algorithm {
 
     // TODO Use generics for these methods and let the cluster be agument1. But how!?
     /*
-     * net.comploud.code.bitfrag.Cluster<net.comploud.code.bitfrag.Fragment> is NOT super to net.comploud.code.bitfrag.Cluster<net.comploud.code.bitfrag.XORFragment>! Admittedly, I fell for that one in my code design...
+     * Cluster<Fragment> is NOT super to Cluster<XORFragment>! Admittedly, I fell for that one in my code design...
      * Not really sure how do best wield the object orientation ninja sword to get this done as elegantly as adequately
      * possible... Chase down this TO-DO later!
      * Meanwhile, the implementation needs to take a cluster (with its own fragment implementation) in the constructor.
