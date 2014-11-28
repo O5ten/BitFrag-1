@@ -7,8 +7,8 @@ if [ "$0" != "./build.sh" ]; then
     echo "Please run this from the root of the BitFrag directory"
     exit 1
 fi
-mkdir -p build
-javac -d ./build/ src/main/java/net/comploud/code/bitfrag/*.java
-cd build
+mkdir -p target
+javac -d ./target/ src/main/java/net/comploud/code/bitfrag/*.java
+cd target
 jar cvef net.comploud.code.bitfrag.BitFrag BitFrag.jar *
 echo 'Tadaa! One BitFrag.jar created. Run it with "java -jar BitFrag.jar"'
